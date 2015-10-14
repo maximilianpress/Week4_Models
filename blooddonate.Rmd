@@ -1,0 +1,126 @@
+Predicting blood donations - DrivenData
+===============================
+## Maximilian Press
+
+I decided to do some basic analysis of the blood donation dataset with predictions to see how good I could get using some basic tools.
+
+## Logistic regression
+This was fairly simple.  I chose to randomly sample 500 observations to train, and test on the remaining 248.  
+
+```{r}
+trans = read.csv('~/transfusion/transfusion.data',header=T)
+cor(trans)
+```
+Look at the data a little (Figure 1).
+```{r fig.width=7, fig.height=7}
+plot(trans,cex=.5)
+```
+Obviously some of these things are more meaningful than other things.  I will sorta naively fit the model based on everything, ignoring the possibility of interactions.
+
+```{r}
+# training set
+trainindex = sample(1:748,500)
+train = trans[trainindex,]
+# test set
+test = trans[!(1:nrow(trans) %in% trainindex),]
+
+trainfit = glm(whether.he.she.donated.blood.in.March.2007 ~ Recency..months. + Frequency..times. + Monetary..c.c..blood. + Time..months.,family='binomial',data=train)
+
+# do some predictions
+predictor = predict.glm(trainfit,newdata=test)
+prediction = cbind(predictor,test[,5])
+
+# really crude look at prediction success
+cor(prediction,method='spearman')
+
+# some utility functions
+source('~/roc.R')
+```
+How good is this model anyways?  (Figure 2)
+
+```{r figure.width=5,figure.height=7,fig.cap='Performance of naive logistic regression'}
+a=ROC(prediction)
+```
+So it's not great, but okay (i.e. AUC>0.5).  Specifically, the precision goes to hell very quickly.  Does stepwise regression help it by getting rid of spurious variables that are overfitting?
+
+```{r}
+stepfit = step(trainfit)
+```
+So it looks like "Monetary" is pretty much colinear with "frequency", so no additional information (removing it seems to leave exactly the same model).  Also, recency does not seem to add much, so I am going to remove that.
+
+```{r}
+curated_fit = glm(whether.he.she.donated.blood.in.March.2007 ~ Frequency..times. + Time..months.,family='binomial',data=train)
+curated_prediction = predict.glm(curated_fit,newdata=test)
+
+prediction = cbind(curated_prediction,test[,5])
+
+```  
+```{r fig.width=5,fig.height=7,fig.cap = 'Performance of logistic regression with reduced model'}
+a=ROC(prediction)
+```
+
+Didn't really change much (Figure 3).  Lost a little AUC, but not much for removing 2 explanatory variables in slavish devotion to occam's razor.  Precision seems to fall apart a bit, though.  While logistic regression is nice and simple, it is not doing a super job, so I will move on to see if anything else does better.
+
+## Naive Bayes
+Naive Bayes is an attractively simple classification technique. It is similar to the initial logistic regression implemented above, because of its assumption of independence of predictor variables.  It uses a straightforward interpretation of Bayes' rule to compute probabilities of each variable belonging to each class.  While we only have a binary outcome, it is possible that NB will perform better for some reason.  
+
+```{r}
+require(e1071)
+# this function wants response to be a factor
+classifier = naiveBayes(train[,1:4],as.factor(train[,5]))
+print(classifier)
+bayespredict = cbind(predict(classifier,test[,-5]),test[,5])
+```
+```{r fig.width=5,fig.height=7,fig.cap='Performance of Naive Bayes predictor'}
+a=ROC(bayespredict)
+```
+Well, it turns out that Bayesian statistics is not the answer to everything (Figure 4).  About the same as the reduced logistic regression model.  The curve is weirdly step-like, wonder what's going on there.  Perhaps because NB is specifying categorical cutoffs in the continuous data?
+
+## Interaction effects
+So far I have made the simplifying assumption that the variables are independent.  This obviously isn't the case.  Maybe what I am missing is interactions between variables, which contain something extra.  I will go back to the logistic regression model, except this time add interactions.
+```{r}
+interfit = glm(whether.he.she.donated.blood.in.March.2007 ~ Recency..months. * Frequency..times. * Time..months.,family='binomial',data=train)
+
+interstep = step(interfit)
+summary(interstep)
+
+predictor = predict.glm(interstep,newdata=test)
+interpredict = cbind(predictor,test[,5])
+```
+```{r fig.width=5,fig.height=7,fig.cap='Performance of logistic regression predictor with interaction effects'}
+a=ROC(interpredict)
+```
+So... that's actually the best prediction (Figure 5), if you give it points for less parameters (kinda), but it's still nothing to write home about.  Probably the interaction is meaningful, so it's helping a little, but we remain unamused by the performance of this predictor.  
+
+In various runs, the logistic-with-interactions precision seems generally more reliable than any other predictor, but I haven't strictly quantified it with cross-validation. Specifically, the first few predictions here seem to be more accurate than the others, and precision takes longer to decay.
+
+### Addendum
+After doing this analysis, I looked at the paper from which the dataset came.  They made things more complicated by treating the blood donation visits as a series of Bernoulli trials.  Maybe they had more complete data than we, but it seemed to me that without knowing the starting point or the number of actual blood drives these people had gone through it was weird to model it that way.  And if I interpret their performance properly, their model is no better or a little worse than the ones I present.
+
+Given that there are really only 3 independent variables for prediction ("Monetary" is just a linear transformation of "Frequency"), this is pretty squarely a high-n low-p problem. My intuition is that scraping for slightly better performance with more complicated methods is more likely to cause trouble and mislead people through overfitting than to add any additional power.  With this somewhat skeptical view of how data analysis is generally performed, I rest my case.
+
+## Addendum 2: Nearest neighbor.  
+Apparently nearest-neighbor is good. I am trying it out.  Figure 6: k=2, Figure 7: k=3, Figure 8: k=4, Figure 9: k=5.
+```{r}
+library(class)
+nn2_pred = knn(train[,1:4],test=test[,1:4] ,cl=train[,5],k=2)
+nn2_predict = cbind(nn2_pred,test[,5])
+```
+```{r fig.width=5,fig.height=7,fig.cap='Performance of kNN with k=2.'}
+a=ROC(nn2_predict)
+```
+```{r fig.width=5,fig.height=7,fig.cap='Performance of kNN with k=3.'}
+nn3_pred = knn(train[,1:4],test=test[,1:4] ,cl=train[,5],k=3)
+nn3_predict = cbind(nn3_pred,test[,5])
+a=ROC(nn3_predict)
+```
+```{r fig.width=5,fig.height=7,fig.cap='Performance of kNN with k=4.'}
+nn4_pred = knn(train[,1:4],cl=train[,5],test=test[,1:4] ,k=4)
+nn4_predict = cbind(nn4_pred,test[,5])
+a=ROC(nn4_predict)
+```
+```{r fig.width=5,fig.height=7,fig.cap='Performance of kNN with k=5.'}
+nn5_pred = knn(train[,1:4],test[,1:4],cl=train[,5] ,k=5)
+nn5_predict = cbind(nn5_pred,test[,5])
+a=ROC(nn5_predict)
+```
