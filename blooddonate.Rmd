@@ -1,4 +1,4 @@
-Predicting blood donations - DrivenData
+Predicting blood donations 
 ===============================
 ## Maximilian Press
 
@@ -32,8 +32,9 @@ Except this is obviously a really crappy model. This can be shown if we try to p
 ```{r fig.width=5, fig.height=5}
 linpred = predict(linmod,newdata=test)
 linpredplot = plot(jitter(test$whether.he.she.donated.blood.in.March.2007), linpred, 
-xlab='True value (jittered)', ylab='Predicted value', cex = .5)
-
+xlab='True value (jittered)', ylab='Predicted value', xlim = c(-.2,1.2), ylim = c(0,1), cex = .5)
+#abline( a = 0, b = 1 )
+points( c(0,1), c(0,1), cex = 2, pch = 19 )
 ```{r fig.width=5, fig.height=7}
 prediction = cbind(linpred,test[,5])
 a = ROC(prediction)

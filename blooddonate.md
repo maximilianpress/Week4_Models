@@ -1,4 +1,4 @@
-Predicting blood donations - DrivenData
+Predicting blood donations 
 ===============================
 ## Maximilian Press
 
@@ -70,18 +70,18 @@ summary(linmod)
 ## 
 ## Residuals:
 ##     Min      1Q  Median      3Q     Max 
-## -0.8586 -0.2193 -0.1701 -0.1537  0.8463 
+## -0.7743 -0.2429 -0.2021 -0.1053  0.8116 
 ## 
 ## Coefficients:
 ##                   Estimate Std. Error t value Pr(>|t|)    
-## (Intercept)       0.137317   0.024866   5.522 5.40e-08 ***
-## Frequency..times. 0.016392   0.003123   5.249 2.27e-07 ***
+## (Intercept)       0.174819   0.025734   6.793 3.14e-11 ***
+## Frequency..times. 0.013625   0.003136   4.344 1.69e-05 ***
 ## ---
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ## 
-## Residual standard error: 0.4079 on 498 degrees of freedom
-## Multiple R-squared:  0.05242,	Adjusted R-squared:  0.05051 
-## F-statistic: 27.55 on 1 and 498 DF,  p-value: 2.273e-07
+## Residual standard error: 0.4259 on 498 degrees of freedom
+## Multiple R-squared:  0.03651,	Adjusted R-squared:  0.03458 
+## F-statistic: 18.87 on 1 and 498 DF,  p-value: 1.694e-05
 ```
 
 ```r
@@ -98,7 +98,9 @@ Except this is obviously a really crappy model. This can be shown if we try to p
 ```r
 linpred = predict(linmod,newdata=test)
 linpredplot = plot(jitter(test$whether.he.she.donated.blood.in.March.2007), linpred, 
-xlab='True value (jittered)', ylab='Predicted value', cex = .5)
+xlab='True value (jittered)', ylab='Predicted value', xlim = c(-.2,1.2), ylim = c(0,1), cex = .5)
+#abline( a = 0, b = 1 )
+points( c(0,1), c(0,1), cex = 2, pch = 19 )
 ```
 
 ![plot of chunk unnamed-chunk-4](figure/unnamed-chunk-4-1.png) 
@@ -139,8 +141,8 @@ cor(prediction,method='spearman')
 
 ```
 ##           predictor          
-## predictor 1.0000000 0.3460193
-##           0.3460193 1.0000000
+## predictor 1.0000000 0.3391207
+##           0.3391207 1.0000000
 ```
 
 ```r
@@ -163,20 +165,20 @@ stepfit = step(trainfit)
 ```
 
 ```
-## Start:  AIC=444.69
+## Start:  AIC=482.84
 ## whether.he.she.donated.blood.in.March.2007 ~ Recency..months. + 
 ##     Frequency..times. + Monetary..c.c..blood. + Time..months.
 ## 
 ## 
-## Step:  AIC=444.69
+## Step:  AIC=482.84
 ## whether.he.she.donated.blood.in.March.2007 ~ Recency..months. + 
 ##     Frequency..times. + Time..months.
 ## 
 ##                     Df Deviance    AIC
-## <none>                   436.69 444.69
-## - Time..months.      1   448.66 454.66
-## - Frequency..times.  1   455.99 461.99
-## - Recency..months.   1   464.57 470.57
+## <none>                   474.84 482.84
+## - Time..months.      1   487.12 493.12
+## - Frequency..times.  1   499.18 505.18
+## - Recency..months.   1   505.56 511.56
 ```
 So it looks like "Monetary" is pretty much colinear with "frequency", so no additional information (removing it seems to leave exactly the same model).  Also, recency does not seem to add much, so I am going to remove that.
 
@@ -209,42 +211,58 @@ require(e1071)
 ```
 
 ```
-## Warning in library(package, lib.loc = lib.loc, character.only = TRUE,
-## logical.return = TRUE, : there is no package called 'e1071'
+## Warning: package 'e1071' was built under R version 3.2.2
 ```
 
 ```r
 # this function wants response to be a factor
 classifier = naiveBayes(train[,1:4],as.factor(train[,5]))
-```
-
-```
-## Error in eval(expr, envir, enclos): could not find function "naiveBayes"
-```
-
-```r
 print(classifier)
 ```
 
 ```
-## Error in print(classifier): object 'classifier' not found
+## 
+## Naive Bayes Classifier for Discrete Predictors
+## 
+## Call:
+## naiveBayes.default(x = train[, 1:4], y = as.factor(train[, 5]))
+## 
+## A-priori probabilities:
+## as.factor(train[, 5])
+##     0     1 
+## 0.756 0.244 
+## 
+## Conditional probabilities:
+##                      Recency..months.
+## as.factor(train[, 5])      [,1]     [,2]
+##                     0 10.399471 7.731001
+##                     1  5.122951 4.821745
+## 
+##                      Frequency..times.
+## as.factor(train[, 5])     [,1]     [,2]
+##                     0 4.873016 4.889198
+##                     1 7.836066 8.239555
+## 
+##                      Monetary..c.c..blood.
+## as.factor(train[, 5])     [,1]     [,2]
+##                     0 1218.254 1222.299
+##                     1 1959.016 2059.889
+## 
+##                      Time..months.
+## as.factor(train[, 5])     [,1]     [,2]
+##                     0 35.68783 25.06422
+##                     1 33.23770 24.51212
 ```
 
 ```r
 bayespredict = cbind(predict(classifier,test[,-5]),test[,5])
 ```
 
-```
-## Error in predict(classifier, test[, -5]): object 'classifier' not found
-```
-
 ```r
 a=ROC(bayespredict)
 ```
 
-```
-## Error in is.data.frame(frame): object 'bayespredict' not found
-```
+![Performance of Naive Bayes predictor](figure/unnamed-chunk-12-1.png) 
 Well, it turns out that Bayesian statistics is not the answer to everything (Figure 4).  About the same as the reduced logistic regression model.  The curve is weirdly step-like, wonder what's going on there.  Perhaps because NB is specifying categorical cutoffs in the continuous data?
 
 ## Interaction effects
@@ -257,34 +275,13 @@ interstep = step(interfit)
 ```
 
 ```
-## Start:  AIC=436.19
+## Start:  AIC=473.88
 ## whether.he.she.donated.blood.in.March.2007 ~ Recency..months. * 
 ##     Frequency..times. * Time..months.
 ## 
 ##                                                    Df Deviance    AIC
-## - Recency..months.:Frequency..times.:Time..months.  1   421.37 435.37
-## <none>                                                  420.19 436.19
-## 
-## Step:  AIC=435.37
-## whether.he.she.donated.blood.in.March.2007 ~ Recency..months. + 
-##     Frequency..times. + Time..months. + Recency..months.:Frequency..times. + 
-##     Recency..months.:Time..months. + Frequency..times.:Time..months.
-## 
-##                                      Df Deviance    AIC
-## - Recency..months.:Time..months.      1   422.95 434.95
-## <none>                                    421.37 435.37
-## - Recency..months.:Frequency..times.  1   424.97 436.97
-## - Frequency..times.:Time..months.     1   433.63 445.63
-## 
-## Step:  AIC=434.95
-## whether.he.she.donated.blood.in.March.2007 ~ Recency..months. + 
-##     Frequency..times. + Time..months. + Recency..months.:Frequency..times. + 
-##     Frequency..times.:Time..months.
-## 
-##                                      Df Deviance    AIC
-## <none>                                    422.95 434.95
-## - Recency..months.:Frequency..times.  1   424.97 434.97
-## - Frequency..times.:Time..months.     1   435.25 445.25
+## <none>                                                  457.88 473.88
+## - Recency..months.:Frequency..times.:Time..months.  1   460.40 474.40
 ```
 
 ```r
@@ -294,37 +291,40 @@ summary(interstep)
 ```
 ## 
 ## Call:
-## glm(formula = whether.he.she.donated.blood.in.March.2007 ~ Recency..months. + 
-##     Frequency..times. + Time..months. + Recency..months.:Frequency..times. + 
-##     Frequency..times.:Time..months., family = "binomial", data = train)
+## glm(formula = whether.he.she.donated.blood.in.March.2007 ~ Recency..months. * 
+##     Frequency..times. * Time..months., family = "binomial", data = train)
 ## 
 ## Deviance Residuals: 
 ##     Min       1Q   Median       3Q      Max  
-## -1.7350  -0.6713  -0.4329  -0.2396   2.7598  
+## -1.9828  -0.7314  -0.4612  -0.2570   2.3918  
 ## 
 ## Coefficients:
-##                                      Estimate Std. Error z value Pr(>|z|)
-## (Intercept)                        -1.3437080  0.3594550  -3.738 0.000185
-## Recency..months.                   -0.0754884  0.0335186  -2.252 0.024314
-## Frequency..times.                   0.3588261  0.0727548   4.932 8.14e-07
-## Time..months.                      -0.0117450  0.0087395  -1.344 0.178981
-## Recency..months.:Frequency..times. -0.0073529  0.0054630  -1.346 0.178315
-## Frequency..times.:Time..months.    -0.0030297  0.0008632  -3.510 0.000448
-##                                       
-## (Intercept)                        ***
-## Recency..months.                   *  
-## Frequency..times.                  ***
-## Time..months.                         
-## Recency..months.:Frequency..times.    
-## Frequency..times.:Time..months.    ***
+##                                                    Estimate Std. Error
+## (Intercept)                                      -1.1768198  0.3683353
+## Recency..months.                                 -0.0585015  0.0496780
+## Frequency..times.                                 0.4552780  0.0944032
+## Time..months.                                    -0.0232070  0.0103680
+## Recency..months.:Frequency..times.               -0.0284082  0.0128723
+## Recency..months.:Time..months.                    0.0009083  0.0012139
+## Frequency..times.:Time..months.                  -0.0036012  0.0010170
+## Recency..months.:Frequency..times.:Time..months.  0.0002541  0.0001437
+##                                                  z value Pr(>|z|)    
+## (Intercept)                                       -3.195 0.001398 ** 
+## Recency..months.                                  -1.178 0.238951    
+## Frequency..times.                                  4.823 1.42e-06 ***
+## Time..months.                                     -2.238 0.025200 *  
+## Recency..months.:Frequency..times.                -2.207 0.027320 *  
+## Recency..months.:Time..months.                     0.748 0.454328    
+## Frequency..times.:Time..months.                   -3.541 0.000399 ***
+## Recency..months.:Frequency..times.:Time..months.   1.768 0.077007 .  
 ## ---
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ## 
 ## (Dispersion parameter for binomial family taken to be 1)
 ## 
-##     Null deviance: 511.29  on 499  degrees of freedom
-## Residual deviance: 422.95  on 494  degrees of freedom
-## AIC: 434.95
+##     Null deviance: 555.65  on 499  degrees of freedom
+## Residual deviance: 457.88  on 492  degrees of freedom
+## AIC: 473.88
 ## 
 ## Number of Fisher Scoring iterations: 5
 ```
