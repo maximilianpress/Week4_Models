@@ -8,7 +8,7 @@ I decided to do some basic analysis of the blood donation dataset with predictio
 This was fairly simple.  I chose to randomly sample 500 observations to train, and test on the remaining 248.  
 
 ```{r}
-trans = read.csv('~/transfusion/transfusion.data',header=T)
+trans = read.csv('transfusion.data',header=T)
 cor(trans)
 ```
 Look at the data a little (Figure 1).
@@ -16,6 +16,29 @@ Look at the data a little (Figure 1).
 plot(trans,cex=.5)
 ```
 Obviously some of these things are more meaningful than other things.  I will sorta naively fit the model based on everything, ignoring the possibility of interactions.
+
+First, fit a linear model, which is ok but not very interesting.
+```{r fig.width=5, fig.height=5}
+plot(train$Frequency..times.,jitter(train$whether.he.she.donated.blood.in.March.2007),xlab='# donation events',ylab='donated in test period (jittered)', cex = .5 )
+linmod = lm(whether.he.she.donated.blood.in.March.2007 ~ Frequency..times.,data = train)
+summary(linmod)	
+abline(linmod)
+```
+
+So we had a low p-value, which is good right? Problem solved, everyone go home.
+
+Except this is obviously a really crappy model. This can be shown if we try to predict test values (new data that wasn't used to build the model, just plugging new values into the model function) and compare them to the actual values of the test outcome.
+
+```{r fig.width=5, fig.height=5}
+linpred = predict(linmod,newdata=test)
+linpredplot = plot(jitter(test$whether.he.she.donated.blood.in.March.2007), linpred, 
+xlab='True value (jittered)', ylab='Predicted value', cex = .5)
+
+```{r fig.width=5, fig.height=7}
+prediction = cbind(linpred,test[,5])
+a = ROC(prediction)
+```
+
 
 ```{r}
 # training set
@@ -34,7 +57,7 @@ prediction = cbind(predictor,test[,5])
 cor(prediction,method='spearman')
 
 # some utility functions
-source('~/roc.R')
+source('roc.R')
 ```
 How good is this model anyways?  (Figure 2)
 
