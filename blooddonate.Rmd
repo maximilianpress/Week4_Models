@@ -2,14 +2,16 @@ Predicting blood donations
 ===============================
 ## Maximilian Press
 
-I decided to do some basic analysis of the blood donation dataset with predictions to see how good I could get using some basic tools.
+Various looks at what you can do with models, hopefully with an emphasis on parametric (GLM) models. 
 
-## Logistic regression
-This was fairly simple.  I chose to randomly sample 500 observations to train, and test on the remaining 248.  
+Takes a statistical learning point of view on the problem.
+
+This is a good resource: Dolph Schluter's R modeling pages. https://www.zoology.ubc.ca/~schluter/R/fit-model/
 
 ```{r}
+require(visreg)
 trans = read.csv('transfusion.data',header=T)
-cor(trans)
+#cor(trans)
 ```
 Look at the data a little (Figure 1).
 ```{r fig.width=7, fig.height=7}
@@ -17,63 +19,151 @@ plot(trans,cex=.5)
 ```
 Obviously some of these things are more meaningful than other things.  I will sorta naively fit the model based on everything, ignoring the possibility of interactions.
 
+Using prediction to evaluate the model. I chose to randomly sample 500 observations to train, and test on the remaining 248.  
+```{r}
+# training set
+set.seed(666) # EXTREME
+trainindex = sample(1:748,500)
+train = trans[trainindex,]
+# test set
+test = trans[!(1:nrow(trans) %in% trainindex),]
+
+# some utility functions
+source('roc.R')
+```
+
 First, fit a linear model, which is ok but not very interesting.
-```{r fig.width=5, fig.height=5}
-plot(train$Frequency..times.,jitter(train$whether.he.she.donated.blood.in.March.2007),xlab='# donation events',ylab='donated in test period (jittered)', cex = .5 )
-linmod = lm(whether.he.she.donated.blood.in.March.2007 ~ Frequency..times.,data = train)
-summary(linmod)	
-abline(linmod)
+```{r fig.width=5, fig.height=5,fig.cap='Predictions of linear model (training only)'}
+plot(train$Frequency..times.,
+	jitter(train$whether.he.she.donated.blood.in.March.2007),
+	xlab='# donation events',ylab='donated in test period (jittered)', 
+	cex = .5 )
+
+# fit the model
+linmod = lm(whether.he.she.donated.blood.in.March.2007 ~ 
+	Frequency..times.,data = train)
+str(linmod)
+
+# things you can do with the fitted model object
+abline(linmod)	# add the predicted function to the plot just generated
+
+# return various useful information about the model:
+summary(linmod)	# print a lot of results, in semi-human-readable table
+coef(linmod) 	# coefficients (parameters)
+confint(linmod)	# confidence intervals
+resid(linmod)[1:10]	# residuals on the model -  printing out only first ten
+anova(linmod)	# anova table
+
+# this would plot lots of model fit info, which may or may not be useful:
+#plot(linmod)	# commented because verbose
+
+# alternate visualization method
+library(visreg)
+visreg(linmod)
+
 ```
 
 So we had a low p-value, which is good right? Problem solved, everyone go home.
 
 Except this is obviously a really crappy model. This can be shown if we try to predict test values (new data that wasn't used to build the model, just plugging new values into the model function) and compare them to the actual values of the test outcome.
 
-```{r fig.width=5, fig.height=5}
+```{r fig.width=5, fig.height=5, fig.cap = 'Predictions vs. true values from linear model on test data'}
 linpred = predict(linmod,newdata=test)
-linpredplot = plot(jitter(test$whether.he.she.donated.blood.in.March.2007), linpred, 
-xlab='True value (jittered)', ylab='Predicted value', xlim = c(-.2,1.2), ylim = c(0,1), cex = .5)
-#abline( a = 0, b = 1 )
+linpredplot = plot(
+	jitter(test$whether.he.she.donated.blood.in.March.2007), 
+	linpred, 
+	xlab='True value (jittered)', ylab='Predicted value', 
+	xlim = c(-.2,1.2), ylim = c(0,1), cex = .5)
+
 points( c(0,1), c(0,1), cex = 2, pch = 19 )
-```{r fig.width=5, fig.height=7}
+```
+```{r fig.width=5, fig.height=7, fig.cap='ROC analysis of linear model on test'}
 prediction = cbind(linpred,test[,5])
 a = ROC(prediction)
 ```
 
+Not great. There are also some numerical summaries of model fit that various people use (besides $R^2$).
 
 ```{r}
-# training set
-trainindex = sample(1:748,500)
-train = trans[trainindex,]
-# test set
-test = trans[!(1:nrow(trans) %in% trainindex),]
+# Akaike information criterion: 
+# 2(num parameters) - 2ln( L(model) ) [lower is better!!!]
+AIC(linmod)	
+# stolen from https://www.kaggle.com/c/bioresponse/forums/t/1576/r-code-for-logloss
+# prettied up from that to make more readable
+LogLoss = function(actual, predicted)	
+# for explanation see https://en.wikipedia.org/wiki/Loss_function
+	{
+	result = -1/length(actual) * 
+	sum( 
+	# true prediction failures
+	actual * log(predicted) + 
+	# false prediction failures
+	(1-actual) * log(1-predicted) 
+	)
+	return(result)
+	}
 
-trainfit = glm(whether.he.she.donated.blood.in.March.2007 ~ Recency..months. + Frequency..times. + Monetary..c.c..blood. + Time..months.,family='binomial',data=train)
+# note that this makes use of training set
+LogLoss( test$whether.he.she.donated.blood.in.March.2007, linpred )	
+
+# AUC from the ROC curve above also is such a measure.
+# you can even use a U-test to sort of evaluate the quality of the predictions:
+wilcox.test( 
+	linpred[test$whether.he.she.donated.blood.in.March.2007 == 1],
+	linpred[test$whether.he.she.donated.blood.in.March.2007 == 0] 
+	)
+
+# or even something as naive as correlations
+cor(test$whether.he.she.donated.blood.in.March.2007, linpred)
+```
+
+
+Try instead a logistic regression: a generalized linear model (GLM) of the family "binomial". That is, it expects the outcome variable (blood donation) to be distributed as a binomial (0/1) random variable. The predictor "generalizes" a linear fit using the logistic function to be able to make discrete 0/1 predictions.
+
+```{r figure.width=5,figure.height=7,fig.cap='Performance of naive logistic regression'}
+trainfit = glm(whether.he.she.donated.blood.in.March.2007 ~ Recency..months. 
+	+ Frequency..times. + Monetary..c.c..blood. 
+	+ Time..months.,family='binomial',data=train
+	)
+
+# summarize it a little...
+AIC(trainfit)
+
+# model comparison!!!
+deltaAIC = AIC(linmod) - AIC(trainfit)
+
+# lower is better, so if this number is positive there
+# is evidence in support of LOGISTIC regression
+deltaAIC
 
 # do some predictions
 predictor = predict.glm(trainfit,newdata=test)
 prediction = cbind(predictor,test[,5])
+colnames(prediction) = c( 'prediction','true values')
 
-# really crude look at prediction success
-cor(prediction,method='spearman')
+# various looks at prediction success
+cor(prediction[,1],prediction[,2],method='spearman')
+LogLoss(prediction[,1],prediction[,2])
 
-# some utility functions
-source('roc.R')
-```
-How good is this model anyways?  (Figure 2)
-
-```{r figure.width=5,figure.height=7,fig.cap='Performance of naive logistic regression'}
 a=ROC(prediction)
+
 ```
+
 So it's not great, but okay (i.e. AUC>0.5).  Specifically, the precision goes to hell very quickly.  Does stepwise regression help it by getting rid of spurious variables that are overfitting?
 
 ```{r}
 stepfit = step(trainfit)
+# this following does the same thing as step()
+#library(MASS)
+#stepAIC(trainfit)
 ```
-So it looks like "Monetary" is pretty much colinear with "frequency", so no additional information (removing it seems to leave exactly the same model).  Also, recency does not seem to add much, so I am going to remove that.
+So it looks like "Monetary" is pretty much colinear with "frequency", so it adds no additional information (removing it seems to leave exactly the same model).  Also, recency does not seem to add much, so I am going to remove that also.
 
 ```{r}
-curated_fit = glm(whether.he.she.donated.blood.in.March.2007 ~ Frequency..times. + Time..months.,family='binomial',data=train)
+curated_fit = glm(whether.he.she.donated.blood.in.March.2007 ~ 
+	Frequency..times. 
+	+ Time..months.,family='binomial',
+	data=train)
 curated_prediction = predict.glm(curated_fit,newdata=test)
 
 prediction = cbind(curated_prediction,test[,5])
@@ -92,6 +182,7 @@ Naive Bayes is an attractively simple classification technique. It is similar to
 require(e1071)
 # this function wants response to be a factor
 classifier = naiveBayes(train[,1:4],as.factor(train[,5]))
+class(classifier)
 print(classifier)
 bayespredict = cbind(predict(classifier,test[,-5]),test[,5])
 ```
@@ -118,13 +209,27 @@ So... that's actually the best prediction (Figure 5), if you give it points for 
 
 In various runs, the logistic-with-interactions precision seems generally more reliable than any other predictor, but I haven't strictly quantified it with cross-validation. Specifically, the first few predictions here seem to be more accurate than the others, and precision takes longer to decay.
 
-### Addendum
-After doing this analysis, I looked at the paper from which the dataset came.  They made things more complicated by treating the blood donation visits as a series of Bernoulli trials.  Maybe they had more complete data than we, but it seemed to me that without knowing the starting point or the number of actual blood drives these people had gone through it was weird to model it that way.  And if I interpret their performance properly, their model is no better or a little worse than the ones I present.
+## K-Nearest Neighbor (kNN)
+kNN is a nonparametric, almost stupidly simple method that just finds data points in the training set that are closest to each test case and uses them to make a prediction. kNN is asymptotically optimal as a predictor (https://en.wikipedia.org/wiki/K-nearest_neighbors_algorithm). 
+```{r fig.width=5,fig.height=7,fig.cap='A brief visual introduction to nearest neighbor'}
+set.seed(667) 
+# just using random samples here, with mild covariation
+a = runif(20) # a predictor variable
+b = a+runif(20) # a variable of interest to be predicted
+plot(a,b,xlab='predictor variable',ylab='predicted variable',ylim=c(0,2))
+# a new data point to predict
+c=runif(1)
+d=c+runif(1)
+points(c,d,pch=19)
+abline(v=c-.05)
+abline(v=c+.05)
+neighbs = which((a > c-.05) & (a<c+.05))
+neighbs # these are the nearest neigbors (not doing a specific k here)
+mean(b[neighbs])  # make a prediction based on neighbs
+points(c,mean(b[neighbs]),pch=19,col='red')  # plot it
+```
 
-Given that there are really only 3 independent variables for prediction ("Monetary" is just a linear transformation of "Frequency"), this is pretty squarely a high-n low-p problem. My intuition is that scraping for slightly better performance with more complicated methods is more likely to cause trouble and mislead people through overfitting than to add any additional power.  With this somewhat skeptical view of how data analysis is generally performed, I rest my case.
-
-## Addendum 2: Nearest neighbor.  
-Apparently nearest-neighbor is good. I am trying it out.  Figure 6: k=2, Figure 7: k=3, Figure 8: k=4, Figure 9: k=5.
+Figure 6: k=2, Figure 7: k=3, Figure 8: k=4, Figure 9: k=5.
 ```{r}
 library(class)
 nn2_pred = knn(train[,1:4],test=test[,1:4] ,cl=train[,5],k=2)
