@@ -70,10 +70,10 @@ Except this is obviously a really crappy model. This can be shown if we try to p
 ```{r fig.width=5, fig.height=5, fig.cap = 'Predictions vs. true values from linear model on test data'}
 linpred = predict(linmod,newdata=test)
 linpredplot = plot(
-	jitter(test$whether.he.she.donated.blood.in.March.2007), 
 	linpred, 
-	xlab='True value (jittered)', ylab='Predicted value', 
-	xlim = c(-.2,1.2), ylim = c(0,1), cex = .5)
+	jitter(test$whether.he.she.donated.blood.in.March.2007),
+	ylab='True value (jittered)', xlab='Predicted value', 
+	ylim = c(-.2,1.2), xlim = c(0,1), cex = .5)
 
 points( c(0,1), c(0,1), cex = 2, pch = 19 )
 ```
@@ -90,18 +90,14 @@ Not great. There are also some numerical summaries of model fit that various peo
 AIC(linmod)	
 # stolen from https://www.kaggle.com/c/bioresponse/forums/t/1576/r-code-for-logloss
 # prettied up from that to make more readable
-LogLoss = function(actual, predicted)	
+LogLoss = function(actual, predicted)	{
 # for explanation see https://en.wikipedia.org/wiki/Loss_function
-	{
 	result = -1/length(actual) * 
 	sum( 
-	# true prediction failures
-	actual * log(predicted) + 
-	# false prediction failures
-	(1-actual) * log(1-predicted) 
+	actual * log(predicted) + # true prediction failures
+	(1-actual) * log(1-predicted) # false prediction failures
 	)
-	return(result)
-	}
+	return(result)	}
 
 # note that this makes use of training set
 LogLoss( test$whether.he.she.donated.blood.in.March.2007, linpred )	
@@ -114,9 +110,25 @@ wilcox.test(
 	)
 
 # or even something as naive as correlations
-cor(test$whether.he.she.donated.blood.in.March.2007, linpred)
+cor(test$whether.he.she.donated.blood.in.March.2007, linpred,method='spearman')
 ```
 
+can in principle make the model more complicated by adding more variables, and compare to the old model. 
+
+```{r}
+multilinmod = lm(whether.he.she.donated.blood.in.March.2007 ~ 
+	Frequency..times. + Recency..months.,data = train)
+
+AIC(multilinmod,linmod)
+anova(multilinmod,linmod)
+
+multipredict = cbind(predict(multilinmod,newdata=test),test[,5])
+a = ROC(multipredict)
+  
+c(logLik(multilinmod),logLik(linmod))
+c(LogLoss(multipredict[,2],multipredict[,1]),LogLoss(multipredict[,2],linpred))
+
+```
 
 Try instead a logistic regression: a generalized linear model (GLM) of the family "binomial". That is, it expects the outcome variable (blood donation) to be distributed as a binomial (0/1) random variable. The predictor "generalizes" a linear fit using the logistic function to be able to make discrete 0/1 predictions.
 
@@ -143,13 +155,13 @@ colnames(prediction) = c( 'prediction','true values')
 
 # various looks at prediction success
 cor(prediction[,1],prediction[,2],method='spearman')
-LogLoss(prediction[,1],prediction[,2])
+#LogLoss(prediction[,1],prediction[,2])
 
 a=ROC(prediction)
 
 ```
 
-So it's not great, but okay (i.e. AUC>0.5).  Specifically, the precision goes to hell very quickly.  Does stepwise regression help it by getting rid of spurious variables that are overfitting?
+So it's okay (i.e. AUC>0.8).  
 
 ```{r}
 stepfit = step(trainfit)
@@ -216,6 +228,7 @@ set.seed(667)
 # just using random samples here, with mild covariation
 a = runif(20) # a predictor variable
 b = a+runif(20) # a variable of interest to be predicted
+par(mfrow=c(1,1))
 plot(a,b,xlab='predictor variable',ylab='predicted variable',ylim=c(0,2))
 # a new data point to predict
 c=runif(1)
