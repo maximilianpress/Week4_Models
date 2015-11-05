@@ -70,6 +70,11 @@ linmod = lm(whether.he.she.donated.blood.in.March.2007 ~
 	Frequency..times., data = train)
 str(linmod)
 
+plot(train$Frequency..times.,
+	jitter(train$whether.he.she.donated.blood.in.March.2007),
+	xlab='# donation events',ylab='donated in test period (jittered)', 
+	cex = .5 , main='Training set')
+
 # things you can do with the fitted model object
 abline(linmod)	# add the predicted function to the plot just generated
 
@@ -193,7 +198,7 @@ stepped = step(trainfit)
 
 
 
-```{rfigure.width=5,figure.height=7,fig.cap='Performance of naive logistic regression'}
+```{r figure.width=5,figure.height=7,fig.cap='Performance of naive logistic regression, by ROC'}
 # do some predictions
 predictor = predict.glm(trainfit,newdata=test)
 prediction = cbind(predictor,test[,5])
