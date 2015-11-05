@@ -1,3 +1,6 @@
+---
+output: pdf_document
+---
 Predicting blood donations 
 ===============================
 ### Maximilian Press + Morgan Lawless
