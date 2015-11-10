@@ -1,5 +1,5 @@
 ---
-output: pdf_document
+output: html_document
 ---
 Predicting blood donations 
 ===============================
@@ -14,7 +14,7 @@ Dolph Schluter's R modeling pages are a good resource for general-purpose model 
 ## Deconstructing the model: K-Nearest Neighbor (kNN)
 kNN is a nonparametric, almost stupidly simple method that just finds data points in the training set that are closest to each test case and uses them to make a prediction. kNN is asymptotically optimal as a predictor (https://en.wikipedia.org/wiki/K-nearest_neighbors_algorithm). 
 
-```{r fig.width=5,fig.height=7,fig.cap='A brief visual introduction to nearest neighbor'}
+```{r fig.width=5,fig.height=5,fig.cap='A brief visual introduction to nearest neighbor'}
 set.seed(667) 
 # just using random samples here, with mild covariation
 a = runif(20) # a predictor variable
@@ -32,6 +32,7 @@ neighbs # these are the nearest neigbors (not doing a specific k here)
 knn_est = mean(b[neighbs])  # make a prediction based on neighbs
 points(c, knn_est, pch=19,col='red')  # plot it
 ```
+### Discuss!
 
 ## Predicting blood donation
 Well, hopefully that was instructive. Now let's look at some actual data. This dataset is from a paper whose reference I have lost, trying to predict who will show up for blood drives, based on prior donation history.
@@ -39,7 +40,7 @@ Well, hopefully that was instructive. Now let's look at some actual data. This d
 ```{r fig.width=7, fig.height=7}
 trans = read.csv('transfusion.data',header=T) # read it in
 head(trans)
-plot(trans,cex=.5)
+plot(trans,pch='.')
 ```
 
 Obviously some of these things are more meaningful than other things.  I will sorta naively fit the model based on everything, ignoring the possibility of interactions.
@@ -49,19 +50,14 @@ Using prediction to evaluate the model. I chose to randomly sample 500 observati
 ```{r}
 # training set
 set.seed(666) # EXTREME
-trainindex = sample(1:748,500)
+dim(trans)
+trainindex = sample(1:nrow(trans),500)
 train = trans[trainindex,]
 # test set
 test = trans[!(1:nrow(trans) %in% trainindex),]
 
 # some utility functions
 source('roc.R')
-
-# plot one particular variable
-plot(train$Frequency..times.,
-	jitter(train$whether.he.she.donated.blood.in.March.2007),
-	xlab='# donation events',ylab='donated in test period (jittered)', 
-	cex = .5 , main='Training set')
 
 ```
 
@@ -107,7 +103,7 @@ linpredplot = plot(
 	linpred, 
 	jitter(test$whether.he.she.donated.blood.in.March.2007),
 	ylab='True value (jittered)', xlab='Predicted value', 
-	ylim = c(-.2,1.2), xlim = c(0,1), cex = .5)
+	ylim = c(-.2,1.2), xlim = c(0,1), cex = .5, main='Test set')
 
 points( c(0,1), c(0,1), cex = 2, pch = 19 )
 ```
@@ -197,15 +193,18 @@ summary(trainfit)
 
 # automated model selection
 stepped = step(trainfit)
+summary(stepped)
+AIC(stepped)
 ```
 
 
 
 ```{r figure.width=5,figure.height=7,fig.cap='Performance of naive logistic regression, by ROC'}
 # do some predictions
-predictor = predict.glm(trainfit,newdata=test)
+predictor = predict.glm(stepped,newdata=test)
 prediction = cbind(predictor,test[,5])
 colnames(prediction) = c( 'prediction','true values')
+
 
 #curve( predict( trainfit, data.frame(Frequency..times.=x), type='response' ), add=TRUE, col='blue')
 
